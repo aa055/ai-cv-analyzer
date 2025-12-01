@@ -1,4 +1,4 @@
-from langchain.llms import Ollama
+from langchain_community.llms import Ollama
 
 class SummaryAgent:
     def __init__(self):
