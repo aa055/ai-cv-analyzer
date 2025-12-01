@@ -1,20 +1,15 @@
 streamlit
-langchain>=0.1.17
+scikit-learn
+langchain
 langchain-core
 langchain-ollama
 langchain-community
 langchain_text_splitters
-scikit-learn
-numpy
 pypdf
 tqdm
 ollama
-sentence-transformers
+# sentence-transformers
 # faiss-cpu  # or faiss-gpu if using GPU
-
-# # Optional (used in some LangChain components)
-# openai  # Needed if fallback to OpenAI API is required
-# pandas
 
 # # Only if using Swarm agents explicitly in your architecture
 # swarm-core
