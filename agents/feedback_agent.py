@@ -1,5 +1,4 @@
-from langchain.llms import Ollama
-
+from langchain_community.llms import Ollama
 class FeedbackAgent:
     def __init__(self):
         self.llm = Ollama(model="llama3.2")
