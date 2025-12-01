@@ -1,5 +1,5 @@
 from sklearn.metrics.pairwise import cosine_similarity
-from langchain.embeddings import OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
 import numpy as np
 
 class JDMatcherAgent:
