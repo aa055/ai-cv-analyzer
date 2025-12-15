@@ -1,8 +1,8 @@
-# 🤖 AI-Powered CV Analyzer & Job Recruiting Assistant
+# AI-Powered CV Analyzer & Job Recruiting Assistant
 
 An intelligent recruitment assistant that leverages AI and NLP to analyze CVs, match candidates with job descriptions, and provide actionable feedback for both candidates and recruiters.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
@@ -17,7 +17,7 @@ An intelligent recruitment assistant that leverages AI and NLP to analyze CVs, m
 
 ---
 
-## 🎯 Overview
+## Overview
 
 This application is a dual-purpose recruiting tool that serves both **job candidates** and **recruiters**:
 
@@ -28,7 +28,7 @@ The system uses local LLM models via Ollama for privacy-focused, offline AI proc
 
 ---
 
-## ✨ Features
+## Features
 
 ### Candidate Features
 - **CV Upload & Parsing**: Extract text from PDF resumes
@@ -46,7 +46,7 @@ The system uses local LLM models via Ollama for privacy-focused, offline AI proc
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 The application follows a **multi-agent architecture** where specialized agents handle specific tasks:
 
@@ -75,7 +75,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ---
 
-## 🔄 Workflow
+## Workflow
 
 ### Candidate Workflow
 
@@ -98,7 +98,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 
@@ -137,7 +137,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ---
 
-## 🚀 Usage
+## Usage
 
 ### For Candidates
 
@@ -159,7 +159,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ---
 
-## 🤖 Agent Details
+## Agent Details
 
 ### 1. CVParserAgent (`cv_parser_agent.py`)
 
@@ -245,7 +245,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Core Framework
 - **Streamlit**: Web-based dashboard interface
@@ -273,7 +273,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ai-cv-analyzer/
@@ -292,46 +292,8 @@ ai-cv-analyzer/
 
 ---
 
-## 📝 Requirements
+## Requirements
 
 See `requirements.txt` for the complete list of dependencies:
 
 ---
-
-## 🔮 Future Enhancements
-
-- **Multi-CV Ranking**: Rank multiple candidates against a single JD
-- **Skill Extraction**: Automatic skill tagging and categorization
-- **ATS Compatibility Check**: Analyze CV compatibility with ATS systems
-- **Export Reports**: Generate PDF/Word reports of analysis
-- **Database Integration**: Store and track candidate analyses
-- **Custom Model Support**: Allow users to choose different LLM models
-- **Batch Processing**: Process multiple CVs simultaneously
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
----
-
-## 📄 License
-
-This project is open source and available under the MIT License.
-
----
-
-## 👤 Author
-
-**aa055**
-
-- GitHub: [@aa055](https://github.com/aa055)
-
----
-
-## 🙏 Acknowledgments
-
-- **Ollama** for local LLM infrastructure
-- **LangChain** for LLM orchestration framework
-- **Streamlit** for rapid web app development
