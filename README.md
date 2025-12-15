@@ -264,12 +264,7 @@ The application follows a **multi-agent architecture** where specialized agents 
 
 ### Data Processing
 - **scikit-learn**: Cosine similarity calculations
-- **numpy**: Numerical operations
 - **pypdf**: PDF text extraction
-
-### Utilities
-- **tqdm**: Progress bars
-- **python-magic-bin**: File type detection (Windows)
 
 ---
 
