@@ -8,11 +8,14 @@ langchain_text_splitters
 pypdf
 tqdm
 ollama
+plotly
+pandas
+numpy
+
+# Optional dependencies (uncomment if needed)
 # sentence-transformers
 # faiss-cpu  # or faiss-gpu if using GPU
-
-# # Only if using Swarm agents explicitly in your architecture
-# swarm-core
+# swarm-core  # Only if using Swarm agents explicitly in your architecture
 
 # For file upload support
 python-magic-bin; platform_system=="Windows"
