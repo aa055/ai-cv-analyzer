@@ -71,6 +71,12 @@ st.markdown("""
         background-color: #1f77b4;
         color: white !important;
     }
+    /* Warning message styling */
+    div[data-testid="stAlert"] p,
+    div[role="alert"] p,
+    .stAlert p {
+        color: black !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
