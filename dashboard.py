@@ -93,6 +93,14 @@ if 'ats_cache' not in st.session_state:
     st.session_state.ats_cache = {}
 if 'skills_cache' not in st.session_state:
     st.session_state.skills_cache = {}
+if 'recruiter_match_result' not in st.session_state:
+    st.session_state.recruiter_match_result = None
+if 'recruiter_parsed' not in st.session_state:
+    st.session_state.recruiter_parsed = None
+if 'recruiter_cache_key' not in st.session_state:
+    st.session_state.recruiter_cache_key = None
+if 'recruiter_cv_name' not in st.session_state:
+    st.session_state.recruiter_cv_name = None
 
 # Load agents
 agents = init_agents()
@@ -484,9 +492,9 @@ with tab1:
 # --- Recruiter View ---
 with tab2:
     st.markdown("### 📋 Job Matching Dashboard")
-    
+
     col1, col2 = st.columns([1, 1])
-    
+
     with col1:
         jd_input = st.text_area(
             "📝 Job Description",
@@ -494,7 +502,7 @@ with tab2:
             placeholder="Paste the job description here...",
             help="Enter the complete job description for matching"
         )
-    
+
     with col2:
         uploaded_cv = st.file_uploader(
             "📄 Candidate CV (PDF)",
@@ -502,111 +510,119 @@ with tab2:
             key="recruiter_cv",
             help="Upload the candidate's CV for matching"
         )
-        
+
         if uploaded_cv:
             st.success(f"✅ File uploaded: {uploaded_cv.name}")
 
-    if jd_input and uploaded_cv:
-        # Create cache key
-        cache_key = f"{uploaded_cv.name}_{uploaded_cv.size}"
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(uploaded_cv.read())
-            tmp_path = tmp_file.name
+    # Add button to trigger match analysis
+    if uploaded_cv and jd_input:
+        if st.button("🎯 Generate Match Analysis", type="primary", use_container_width=True):
+            # Create cache key
+            cache_key = f"{uploaded_cv.name}_{uploaded_cv.size}"
 
-        parsed = safe_parse_cv(tmp_path, cache_key)
-        
-        if parsed:
-            st.markdown("---")
-            
-            # Match scores
-            result = safe_match_jd(parsed["chunks"], jd_input)
-            
-            if result:
-                # Display match scores with visualizations
-                st.markdown("### 📊 Match Analysis")
-                
-                col1, col2, col3 = st.columns([1, 1, 2])
-                
-                with col1:
-                    # Max score gauge
-                    fig_max = create_score_gauge(result['max_score'], "Max Match Score")
-                    st.plotly_chart(fig_max, use_container_width=True)
-                
-                with col2:
-                    # Average score gauge
-                    fig_avg = create_score_gauge(result['avg_score'], "Avg Match Score")
-                    st.plotly_chart(fig_avg, use_container_width=True)
-                
-                with col3:
-                    # Match interpretation
-                    st.markdown("#### 🎯 Match Interpretation")
-                    
-                    if result['max_score'] >= 0.8:
-                        st.success("**Excellent Match!** Strong alignment with job requirements.")
-                    elif result['max_score'] >= 0.6:
-                        st.warning("**Good Match.** Moderate alignment, some gaps to address.")
-                    else:
-                        st.error("**Poor Match.** Significant gaps in requirements.")
-                    
-                    # Detailed metrics
-                    st.metric("Confidence Score", f"{(result['max_score'] + result['avg_score'])/2:.1%}")
-                    st.metric("Consistency", f"{result['avg_score']/result['max_score']:.1%}" if result['max_score'] > 0 else "0%")
-                
-                # Show detailed scores if enabled
-                if show_raw_scores:
-                    with st.expander("📊 Detailed Chunk Scores"):
-                        # Create labels for chunks
-                        labels = [f"Chunk {i+1}" for i in range(len(result['similarity_scores']))]
-                        
-                        # Create and display chart
-                        fig_details = create_similarity_chart(result['similarity_scores'], labels)
-                        st.plotly_chart(fig_details, use_container_width=True)
-                        
-                        # Show top matching chunks
-                        st.markdown("#### Top Matching Sections")
-                        sorted_scores = sorted(
-                            enumerate(result['similarity_scores']), 
-                            key=lambda x: x[1], 
-                            reverse=True
-                        )[:3]
-                        
-                        for idx, score in sorted_scores:
-                            st.write(f"**Chunk {idx+1}** - Score: {score:.2%}")
-                            st.text(parsed["chunks"][idx][:200] + "...")
-                
-                # Add to history
-                st.session_state.analysis_history.append({
-                    'type': 'Match Score',
-                    'filename': uploaded_cv.name,
-                    'timestamp': datetime.now().isoformat(),
-                    'score': result['max_score']
-                })
-                
-                # Action buttons
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    if st.button("📝 Generate Full Report", type="primary", use_container_width=True):
-                        summary_key = f"{cache_key}_summary"
-                        summary = safe_generate_summary(
-                            parsed["text"],
-                            summary_key if enable_caching else None
-                        )
-                        
-                        if summary:
-                            st.markdown("---")
-                            st.markdown("### 📄 Comprehensive Candidate Report")
-                            
-                            # Display summary in a nice container
-                            with st.container():
-                                st.markdown(summary)
-                            
-                            # Export options
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                # Download as text
-                                report_data = f"""
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(uploaded_cv.read())
+                tmp_path = tmp_file.name
+
+            parsed = safe_parse_cv(tmp_path, cache_key)
+
+            if parsed:
+                # Store parsed data in session state for later use
+                st.session_state.recruiter_parsed = parsed
+                st.session_state.recruiter_cache_key = cache_key
+                st.session_state.recruiter_jd = jd_input
+
+                # Match scores
+                result = safe_match_jd(parsed["chunks"], jd_input)
+
+                if result:
+                    st.session_state.recruiter_match_result = result
+                    st.session_state.recruiter_cv_name = uploaded_cv.name
+
+    # Display results if available
+    if 'recruiter_match_result' in st.session_state and st.session_state.recruiter_match_result:
+        result = st.session_state.recruiter_match_result
+        parsed = st.session_state.recruiter_parsed
+        cache_key = st.session_state.recruiter_cache_key
+
+        st.markdown("---")
+
+        # Display match scores with visualizations
+        st.markdown("### 📊 Match Analysis")
+
+        col1, col2, col3 = st.columns([1, 1, 2])
+
+        with col1:
+            # Max score gauge
+            fig_max = create_score_gauge(result['max_score'], "Max Match Score")
+            st.plotly_chart(fig_max, use_container_width=True)
+
+        with col2:
+            # Average score gauge
+            fig_avg = create_score_gauge(result['avg_score'], "Avg Match Score")
+            st.plotly_chart(fig_avg, use_container_width=True)
+
+        with col3:
+            # Match interpretation
+            st.markdown("#### 🎯 Match Interpretation")
+
+            if result['max_score'] >= 0.8:
+                st.success("**Excellent Match!** Strong alignment with job requirements.")
+            elif result['max_score'] >= 0.6:
+                st.warning("**Good Match.** Moderate alignment, some gaps to address.")
+            else:
+                st.error("**Poor Match.** Significant gaps in requirements.")
+
+            # Detailed metrics
+            st.metric("Confidence Score", f"{(result['max_score'] + result['avg_score'])/2:.1%}")
+            st.metric("Consistency", f"{result['avg_score']/result['max_score']:.1%}" if result['max_score'] > 0 else "0%")
+
+        # Show detailed scores if enabled
+        if show_raw_scores:
+            with st.expander("📊 Detailed Chunk Scores"):
+                # Create labels for chunks
+                labels = [f"Chunk {i+1}" for i in range(len(result['similarity_scores']))]
+
+                # Create and display chart
+                fig_details = create_similarity_chart(result['similarity_scores'], labels)
+                st.plotly_chart(fig_details, use_container_width=True)
+
+                # Show top matching chunks
+                st.markdown("#### Top Matching Sections")
+                sorted_scores = sorted(
+                    enumerate(result['similarity_scores']),
+                    key=lambda x: x[1],
+                    reverse=True
+                )[:3]
+
+                for idx, score in sorted_scores:
+                    st.write(f"**Chunk {idx+1}** - Score: {score:.2%}")
+                    st.text(parsed["chunks"][idx][:200] + "...")
+
+        # Action buttons
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("📝 Generate Full Report", use_container_width=True):
+                summary_key = f"{cache_key}_summary"
+                summary = safe_generate_summary(
+                    parsed["text"],
+                    summary_key if enable_caching else None
+                )
+
+                if summary:
+                    st.markdown("---")
+                    st.markdown("### 📄 Comprehensive Candidate Report")
+
+                    # Display summary in a nice container
+                    with st.container():
+                        st.markdown(summary)
+
+                    # Export options
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        # Download as text
+                        report_data = f"""
 CANDIDATE EVALUATION REPORT
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 ================================
@@ -618,40 +634,41 @@ MATCH SCORES:
 DETAILED ANALYSIS:
 {summary}
 """
-                                st.download_button(
-                                    label="📥 Download Report (TXT)",
-                                    data=report_data,
-                                    file_name=f"candidate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                                    mime="text/plain"
-                                )
-                            
-                            with col2:
-                                # Download as JSON
-                                json_data = json.dumps({
-                                    'timestamp': datetime.now().isoformat(),
-                                    'candidate_file': uploaded_cv.name,
-                                    'scores': {
-                                        'max': result['max_score'],
-                                        'avg': result['avg_score'],
-                                        'all': result['similarity_scores']
-                                    },
-                                    'summary': summary
-                                }, indent=2)
-                                
-                                st.download_button(
-                                    label="📥 Download Report (JSON)",
-                                    data=json_data,
-                                    file_name=f"candidate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                                    mime="application/json"
-                                )
-                
-                with col2:
-                    if st.button("🔄 Compare Candidates", use_container_width=True):
-                        st.info("Candidate comparison feature coming soon!")
-                
-                with col3:
-                    if st.button("📧 Schedule Interview", use_container_width=True):
-                        st.info("Interview scheduling feature coming soon!")
+                        st.download_button(
+                            label="📥 Download Report (TXT)",
+                            data=report_data,
+                            file_name=f"candidate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
+
+                    with col2:
+                        # Download as JSON
+                        cv_name = st.session_state.get('recruiter_cv_name', 'unknown')
+                        json_data = json.dumps({
+                            'timestamp': datetime.now().isoformat(),
+                            'candidate_file': cv_name,
+                            'scores': {
+                                'max': result['max_score'],
+                                'avg': result['avg_score'],
+                                'all': result['similarity_scores']
+                            },
+                            'summary': summary
+                        }, indent=2)
+
+                        st.download_button(
+                            label="📥 Download Report (JSON)",
+                            data=json_data,
+                            file_name=f"candidate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json"
+                        )
+
+        with col2:
+            if st.button("🔄 Compare Candidates", use_container_width=True):
+                st.info("Candidate comparison feature coming soon!")
+
+        with col3:
+            if st.button("📧 Schedule Interview", use_container_width=True):
+                st.info("Interview scheduling feature coming soon!")
 
 # --- Analytics Tab ---
 with tab3:
@@ -716,6 +733,10 @@ with tab3:
             st.session_state.summary_cache = {}
             st.session_state.ats_cache = {}
             st.session_state.skills_cache = {}
+            st.session_state.recruiter_match_result = None
+            st.session_state.recruiter_parsed = None
+            st.session_state.recruiter_cache_key = None
+            st.session_state.recruiter_cv_name = None
             st.success("✅ History cleared!")
             st.rerun()
     else:
