@@ -4,58 +4,599 @@ from agents.jd_matcher_agent import JDMatcherAgent
 from agents.feedback_agent import FeedbackAgent
 from agents.summary_agent import SummaryAgent
 import tempfile
+import plotly.graph_objects as go
+import plotly.express as px
+import time
+import json
+from datetime import datetime
 
 # Initialize agents
-cv_parser = CVParserAgent()
-jd_matcher = JDMatcherAgent()
-feedback_agent = FeedbackAgent()
-summary_agent = SummaryAgent()
+@st.cache_resource
+def init_agents():
+    """Initialize agents once and cache them"""
+    return {
+        'cv_parser': CVParserAgent(),
+        'jd_matcher': JDMatcherAgent(),
+        'feedback_agent': FeedbackAgent(),
+        'summary_agent': SummaryAgent()
+    }
 
-st.set_page_config(page_title="AI Recruiter Assistant", layout="wide")
-st.title("🤖 AI-Powered Job Recruiting Assistant")
+# Page configuration
+st.set_page_config(
+    page_title="AI CV Analyzer Pro", 
+    layout="wide",
+    page_icon="🤖",
+    initial_sidebar_state="expanded"
+)
 
-# Tabs for Candidate and Recruiter
-tab1, tab2 = st.tabs(["🎯 Candidate View", "📄 Recruiter View"])
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main {
+        padding: 0rem 1rem;
+    }
+    .stAlert {
+        background-color: #f0f2f6;
+        border-left: 4px solid #1f77b4;
+    }
+    div[data-testid="metric-container"] {
+        background-color: #f0f2f6;
+        border: 1px solid #cccccc;
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    }
+    .uploadedFile {
+        background-color: #e8f4f8;
+        border-radius: 10px;
+        padding: 10px;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        padding-left: 20px;
+        padding-right: 20px;
+        background-color: #f0f2f6;
+        border-radius: 5px 5px 0px 0px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1f77b4;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Initialize session state
+if 'analysis_history' not in st.session_state:
+    st.session_state.analysis_history = []
+if 'parsed_cv_cache' not in st.session_state:
+    st.session_state.parsed_cv_cache = {}
+if 'feedback_cache' not in st.session_state:
+    st.session_state.feedback_cache = {}
+if 'summary_cache' not in st.session_state:
+    st.session_state.summary_cache = {}
+
+# Load agents
+agents = init_agents()
+
+# Header with better styling
+st.markdown("""
+<h1 style='text-align: center; color: #1f77b4;'>
+    🤖 AI-Powered CV Analyzer Pro
+</h1>
+<p style='text-align: center; font-size: 18px; color: #666;'>
+    Smart Resume Analysis & Job Matching Platform
+</p>
+<hr style='margin: 20px 0; border: 1px solid #e0e0e0;'>
+""", unsafe_allow_html=True)
+
+# Sidebar for configuration
+with st.sidebar:
+    st.markdown("### ⚙️ Configuration")
+    
+    st.markdown("#### Model Settings")
+    model_choice = st.selectbox(
+        "LLM Model",
+        ["llama3.2", "llama2", "mistral", "codellama"],
+        help="Select the Ollama model to use for analysis"
+    )
+    
+    chunk_size = st.slider(
+        "Text Chunk Size",
+        min_value=200,
+        max_value=1000,
+        value=500,
+        step=50,
+        help="Size of text chunks for processing"
+    )
+    
+    chunk_overlap = st.slider(
+        "Chunk Overlap",
+        min_value=0,
+        max_value=200,
+        value=50,
+        step=10,
+        help="Overlap between text chunks"
+    )
+    
+    st.markdown("#### Display Settings")
+    show_raw_scores = st.checkbox("Show Raw Similarity Scores", value=False)
+    enable_caching = st.checkbox("Enable Result Caching", value=True)
+    
+    st.markdown("---")
+    
+    # Analysis history
+    if st.session_state.analysis_history:
+        st.markdown("### 📊 Recent Analyses")
+        for idx, item in enumerate(st.session_state.analysis_history[-5:][::-1]):
+            with st.expander(f"{item['type']} - {item['timestamp'][:19]}"):
+                st.write(f"**File:** {item['filename']}")
+                if item['type'] == 'Match Score':
+                    st.write(f"**Score:** {item['score']:.2%}")
+
+def create_score_gauge(score, title="Match Score"):
+    """Create a gauge chart for match scores"""
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number+delta",
+        value = score * 100,
+        title = {'text': title},
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        gauge = {
+            'axis': {'range': [None, 100]},
+            'bar': {'color': "darkblue"},
+            'steps': [
+                {'range': [0, 40], 'color': "#ff4444"},
+                {'range': [40, 70], 'color': "#ffaa00"},
+                {'range': [70, 100], 'color': "#00ff88"}
+            ],
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': 90
+            }
+        }
+    ))
+    fig.update_layout(height=250)
+    return fig
+
+def create_similarity_chart(scores, labels):
+    """Create a bar chart for similarity scores"""
+    colors = ['#ff4444' if s < 0.4 else '#ffaa00' if s < 0.7 else '#00ff88' for s in scores]
+    
+    fig = px.bar(
+        x=scores, 
+        y=labels, 
+        orientation='h',
+        title="Similarity Scores by Section",
+        labels={'x': 'Similarity Score', 'y': 'CV Section'},
+        color=scores,
+        color_continuous_scale=["red", "yellow", "green"],
+        range_color=[0, 1]
+    )
+    fig.update_layout(
+        height=400,
+        showlegend=False,
+        xaxis_range=[0, 1],
+        xaxis_tickformat='.0%'
+    )
+    return fig
+
+def safe_parse_cv(pdf_path, cache_key=None):
+    """Safely parse CV with error handling"""
+    try:
+        # Check cache first
+        if cache_key and cache_key in st.session_state.parsed_cv_cache:
+            return st.session_state.parsed_cv_cache[cache_key]
+        
+        with st.spinner("📄 Parsing CV..."):
+            parsed = agents['cv_parser'].parse_cv(pdf_path)
+            
+            # Cache the result
+            if cache_key and enable_caching:
+                st.session_state.parsed_cv_cache[cache_key] = parsed
+            
+            return parsed
+    except Exception as e:
+        st.error(f"❌ Error parsing CV: {str(e)}")
+        return None
+
+def safe_get_feedback(cv_text, target_role, cache_key=None):
+    """Safely get feedback with error handling"""
+    try:
+        # Check cache first
+        if cache_key and cache_key in st.session_state.feedback_cache:
+            return st.session_state.feedback_cache[cache_key]
+        
+        with st.spinner("🤔 Analyzing CV and generating suggestions..."):
+            feedback = agents['feedback_agent'].suggest_improvements(cv_text, target_role)
+            
+            # Cache the result
+            if cache_key and enable_caching:
+                st.session_state.feedback_cache[cache_key] = feedback
+            
+            # Add to history
+            st.session_state.analysis_history.append({
+                'type': 'Feedback',
+                'filename': 'CV Analysis',
+                'timestamp': datetime.now().isoformat(),
+                'role': target_role or 'General'
+            })
+            
+            return feedback
+    except Exception as e:
+        st.error(f"❌ Error generating feedback: {str(e)}")
+        st.info("💡 Make sure Ollama is running with the required model (llama3.2)")
+        return None
+
+def safe_match_jd(cv_chunks, job_description):
+    """Safely match JD with error handling"""
+    try:
+        with st.spinner("🔍 Calculating match scores..."):
+            result = agents['jd_matcher'].match(cv_chunks, job_description)
+            return result
+    except Exception as e:
+        st.error(f"❌ Error matching CV with JD: {str(e)}")
+        st.info("💡 Make sure Ollama is running with the embedding model (nomic-embed-text)")
+        return None
+
+def safe_generate_summary(cv_text, cache_key=None):
+    """Safely generate summary with error handling"""
+    try:
+        # Check cache first
+        if cache_key and cache_key in st.session_state.summary_cache:
+            return st.session_state.summary_cache[cache_key]
+        
+        with st.spinner("📊 Generating comprehensive candidate summary..."):
+            summary = agents['summary_agent'].generate_summary(cv_text)
+            
+            # Cache the result
+            if cache_key and enable_caching:
+                st.session_state.summary_cache[cache_key] = summary
+            
+            return summary
+    except Exception as e:
+        st.error(f"❌ Error generating summary: {str(e)}")
+        return None
+
+# Main tabs
+tab1, tab2, tab3 = st.tabs(["🎯 Candidate Portal", "👔 Recruiter Dashboard", "📈 Analytics"])
 
 # --- Candidate View ---
 with tab1:
-    st.header("Upload Your CV")
-    uploaded_cv = st.file_uploader("Upload your CV as PDF", type=["pdf"], key="cv_upload")
-    target_role = st.text_input("Target Job Role (Optional)", placeholder="e.g., Data Scientist")
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("### 📤 Upload Your CV")
+        uploaded_cv = st.file_uploader(
+            "Select your CV file (PDF format)",
+            type=["pdf"],
+            key="cv_upload",
+            help="Upload your CV in PDF format for analysis"
+        )
+    
+    with col2:
+        st.markdown("### 🎯 Target Role")
+        target_role = st.text_input(
+            "Enter your target position",
+            placeholder="e.g., Senior Data Scientist",
+            help="Specify the role you're applying for to get tailored feedback"
+        )
+        
+        analysis_type = st.radio(
+            "Analysis Type",
+            ["Quick Review", "Detailed Analysis"],
+            help="Quick Review provides key points, Detailed Analysis gives comprehensive feedback"
+        )
 
     if uploaded_cv:
+        # Create cache key
+        cache_key = f"{uploaded_cv.name}_{uploaded_cv.size}"
+        
+        # Save uploaded file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(uploaded_cv.read())
             tmp_path = tmp_file.name
 
-        parsed = cv_parser.parse_cv(tmp_path)
-        st.subheader("🔍 CV Analysis")
-        # st.write(parsed["text"][:1000] + "...")
+        # Parse CV
+        parsed = safe_parse_cv(tmp_path, cache_key)
+        
+        if parsed:
+            # Display CV preview in an expander
+            with st.expander("📄 CV Content Preview", expanded=False):
+                # Show first 1000 characters
+                preview_text = parsed["text"][:1000]
+                st.text(preview_text + "..." if len(parsed["text"]) > 1000 else preview_text)
+                
+                # Word count and other stats
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Word Count", len(parsed["text"].split()))
+                with col2:
+                    st.metric("Character Count", len(parsed["text"]))
+                with col3:
+                    st.metric("Chunks", len(parsed["chunks"]))
 
-        if st.button("✍️ Get Improvement Suggestions"):
-            suggestions = feedback_agent.suggest_improvements(parsed["text"], target_role)
-            st.subheader("📌 Suggestions")
-            st.write(suggestions)
+            # Action buttons
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("🚀 Get AI Feedback", type="primary", use_container_width=True):
+                    feedback_key = f"{cache_key}_{target_role}_{analysis_type}"
+                    suggestions = safe_get_feedback(
+                        parsed["text"],
+                        target_role,
+                        feedback_key if enable_caching else None
+                    )
+                    
+                    if suggestions:
+                        st.markdown("---")
+                        st.markdown("### 💡 AI-Powered Improvement Suggestions")
+                        
+                        # Display feedback in a nice container
+                        st.info(suggestions)
+                        
+                        # Download button for feedback
+                        st.download_button(
+                            label="📥 Download Feedback Report",
+                            data=suggestions,
+                            file_name=f"cv_feedback_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
+            
+            with col2:
+                if st.button("🔍 Check ATS Score", use_container_width=True):
+                    st.info("ATS scoring feature coming soon!")
+            
+            with col3:
+                if st.button("📊 Skills Analysis", use_container_width=True):
+                    st.info("Skills extraction feature coming soon!")
 
 # --- Recruiter View ---
 with tab2:
-    st.header("Match Candidates with Job Description")
-    jd_input = st.text_area("Paste the Job Description")
-    uploaded_cv = st.file_uploader("Upload Candidate CV (PDF)", type=["pdf"], key="recruiter_cv")
+    st.markdown("### 📋 Job Matching Dashboard")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        jd_input = st.text_area(
+            "📝 Job Description",
+            height=200,
+            placeholder="Paste the job description here...",
+            help="Enter the complete job description for matching"
+        )
+    
+    with col2:
+        uploaded_cv = st.file_uploader(
+            "📄 Candidate CV (PDF)",
+            type=["pdf"],
+            key="recruiter_cv",
+            help="Upload the candidate's CV for matching"
+        )
+        
+        if uploaded_cv:
+            st.success(f"✅ File uploaded: {uploaded_cv.name}")
 
     if jd_input and uploaded_cv:
+        # Create cache key
+        cache_key = f"{uploaded_cv.name}_{uploaded_cv.size}"
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
             tmp_file.write(uploaded_cv.read())
             tmp_path = tmp_file.name
 
-        parsed = cv_parser.parse_cv(tmp_path)
+        parsed = safe_parse_cv(tmp_path, cache_key)
+        
+        if parsed:
+            st.markdown("---")
+            
+            # Match scores
+            result = safe_match_jd(parsed["chunks"], jd_input)
+            
+            if result:
+                # Display match scores with visualizations
+                st.markdown("### 📊 Match Analysis")
+                
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    # Max score gauge
+                    fig_max = create_score_gauge(result['max_score'], "Max Match Score")
+                    st.plotly_chart(fig_max, use_container_width=True)
+                
+                with col2:
+                    # Average score gauge
+                    fig_avg = create_score_gauge(result['avg_score'], "Avg Match Score")
+                    st.plotly_chart(fig_avg, use_container_width=True)
+                
+                with col3:
+                    # Match interpretation
+                    st.markdown("#### 🎯 Match Interpretation")
+                    
+                    if result['max_score'] >= 0.8:
+                        st.success("**Excellent Match!** Strong alignment with job requirements.")
+                    elif result['max_score'] >= 0.6:
+                        st.warning("**Good Match.** Moderate alignment, some gaps to address.")
+                    else:
+                        st.error("**Poor Match.** Significant gaps in requirements.")
+                    
+                    # Detailed metrics
+                    st.metric("Confidence Score", f"{(result['max_score'] + result['avg_score'])/2:.1%}")
+                    st.metric("Consistency", f"{result['avg_score']/result['max_score']:.1%}" if result['max_score'] > 0 else "0%")
+                
+                # Show detailed scores if enabled
+                if show_raw_scores:
+                    with st.expander("📊 Detailed Chunk Scores"):
+                        # Create labels for chunks
+                        labels = [f"Chunk {i+1}" for i in range(len(result['similarity_scores']))]
+                        
+                        # Create and display chart
+                        fig_details = create_similarity_chart(result['similarity_scores'], labels)
+                        st.plotly_chart(fig_details, use_container_width=True)
+                        
+                        # Show top matching chunks
+                        st.markdown("#### Top Matching Sections")
+                        sorted_scores = sorted(
+                            enumerate(result['similarity_scores']), 
+                            key=lambda x: x[1], 
+                            reverse=True
+                        )[:3]
+                        
+                        for idx, score in sorted_scores:
+                            st.write(f"**Chunk {idx+1}** - Score: {score:.2%}")
+                            st.text(parsed["chunks"][idx][:200] + "...")
+                
+                # Add to history
+                st.session_state.analysis_history.append({
+                    'type': 'Match Score',
+                    'filename': uploaded_cv.name,
+                    'timestamp': datetime.now().isoformat(),
+                    'score': result['max_score']
+                })
+                
+                # Action buttons
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if st.button("📝 Generate Full Report", type="primary", use_container_width=True):
+                        summary_key = f"{cache_key}_summary"
+                        summary = safe_generate_summary(
+                            parsed["text"],
+                            summary_key if enable_caching else None
+                        )
+                        
+                        if summary:
+                            st.markdown("---")
+                            st.markdown("### 📄 Comprehensive Candidate Report")
+                            
+                            # Display summary in a nice container
+                            with st.container():
+                                st.markdown(summary)
+                            
+                            # Export options
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                # Download as text
+                                report_data = f"""
+CANDIDATE EVALUATION REPORT
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+================================
 
-        st.subheader("📈 Match Score")
-        result = jd_matcher.match(parsed["chunks"], jd_input)
-        st.metric("Max Score", f"{result['max_score']:.2f}")
-        st.metric("Avg Score", f"{result['avg_score']:.2f}")
+MATCH SCORES:
+- Maximum Score: {result['max_score']:.2%}
+- Average Score: {result['avg_score']:.2%}
 
-        if st.button("📝 Generate Summary"):
-            summary = summary_agent.generate_summary(parsed["text"])
-            st.subheader("📄 Candidate Summary")
-            st.write(summary)
+DETAILED ANALYSIS:
+{summary}
+"""
+                                st.download_button(
+                                    label="📥 Download Report (TXT)",
+                                    data=report_data,
+                                    file_name=f"candidate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                    mime="text/plain"
+                                )
+                            
+                            with col2:
+                                # Download as JSON
+                                json_data = json.dumps({
+                                    'timestamp': datetime.now().isoformat(),
+                                    'candidate_file': uploaded_cv.name,
+                                    'scores': {
+                                        'max': result['max_score'],
+                                        'avg': result['avg_score'],
+                                        'all': result['similarity_scores']
+                                    },
+                                    'summary': summary
+                                }, indent=2)
+                                
+                                st.download_button(
+                                    label="📥 Download Report (JSON)",
+                                    data=json_data,
+                                    file_name=f"candidate_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                    mime="application/json"
+                                )
+                
+                with col2:
+                    if st.button("🔄 Compare Candidates", use_container_width=True):
+                        st.info("Candidate comparison feature coming soon!")
+                
+                with col3:
+                    if st.button("📧 Schedule Interview", use_container_width=True):
+                        st.info("Interview scheduling feature coming soon!")
+
+# --- Analytics Tab ---
+with tab3:
+    st.markdown("### 📈 Analytics Dashboard")
+    
+    if st.session_state.analysis_history:
+        # Create metrics
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Analyses", len(st.session_state.analysis_history))
+        
+        with col2:
+            feedback_count = len([x for x in st.session_state.analysis_history if x['type'] == 'Feedback'])
+            st.metric("CV Reviews", feedback_count)
+        
+        with col3:
+            match_count = len([x for x in st.session_state.analysis_history if x['type'] == 'Match Score'])
+            st.metric("Match Analyses", match_count)
+        
+        with col4:
+            if match_count > 0:
+                avg_score = sum([x['score'] for x in st.session_state.analysis_history if x['type'] == 'Match Score']) / match_count
+                st.metric("Avg Match Score", f"{avg_score:.1%}")
+        
+        st.markdown("---")
+        
+        # Analysis timeline
+        st.markdown("#### 📅 Analysis Timeline")
+        
+        # Convert to dataframe for visualization
+        import pandas as pd
+        
+        if len(st.session_state.analysis_history) > 0:
+            df = pd.DataFrame(st.session_state.analysis_history)
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            
+            # Create timeline chart
+            fig = px.scatter(
+                df,
+                x='timestamp',
+                y='type',
+                color='type',
+                title="Analysis Activity Over Time",
+                hover_data=['filename'] if 'filename' in df.columns else None
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Recent activity table
+            st.markdown("#### 📊 Recent Activity")
+            st.dataframe(
+                df[['timestamp', 'type', 'filename']].tail(10).sort_values('timestamp', ascending=False),
+                use_container_width=True,
+                hide_index=True
+            )
+        
+        # Clear history button
+        if st.button("🗑️ Clear Analysis History"):
+            st.session_state.analysis_history = []
+            st.session_state.parsed_cv_cache = {}
+            st.session_state.feedback_cache = {}
+            st.session_state.summary_cache = {}
+            st.success("✅ History cleared!")
+            st.rerun()
+    else:
+        st.info("📊 No analysis data available yet. Start by analyzing some CVs!")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #888; padding: 20px;'>
+    <p>Powered by Ollama & LangChain | Made with ❤️ using Streamlit</p>
+    <p style='font-size: 12px;'>Ensure Ollama is running with llama3.2 and nomic-embed-text models</p>
+</div>
+""", unsafe_allow_html=True)
