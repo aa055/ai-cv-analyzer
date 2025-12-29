@@ -61,10 +61,15 @@ st.markdown("""
         padding-right: 20px;
         background-color: #f0f2f6;
         border-radius: 5px 5px 0px 0px;
+        color: black;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #5a9fd4;
+        color: white;
     }
     .stTabs [aria-selected="true"] {
         background-color: #1f77b4;
-        color: white;
+        color: white !important;
     }
 </style>
 """, unsafe_allow_html=True)
