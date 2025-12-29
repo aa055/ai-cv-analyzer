@@ -32,9 +32,67 @@ class CVParserAgent:
             length_function=len,
         )
 
-    def extract_structured_info(self, text: str) -> Dict:
+    def extract_name_from_text(self, text: str, email: str = None) -> Optional[str]:
+        """Extract candidate name using multiple strategies"""
+
+        # Strategy 1: Look for name patterns at the beginning of text
+        # Common pattern: Name appears in first 200 characters, often as Title Case words
+        first_part = text[:500]
+
+        # Strategy 2: If we have email, extract name from email prefix
+        if email:
+            email_prefix = email.split('@')[0]
+            # Common patterns: john.doe, johndoe, john_doe, john-doe
+            name_from_email = email_prefix.replace('.', ' ').replace('_', ' ').replace('-', ' ')
+            # Filter out common non-name prefixes
+            non_name_prefixes = ['info', 'contact', 'admin', 'hr', 'jobs', 'career', 'resume', 'cv', 'apply']
+            if name_from_email.lower() not in non_name_prefixes and len(name_from_email) > 2:
+                # Title case the name
+                name_parts = name_from_email.split()
+                if len(name_parts) >= 1 and all(len(p) > 1 for p in name_parts):
+                    # Check if it could be a name (not just numbers)
+                    if any(c.isalpha() for c in name_from_email):
+                        return ' '.join(word.capitalize() for word in name_parts)
+
+        # Strategy 3: Look for capitalized name pattern (2-4 words, each starting with capital)
+        # Pattern: First Last or First Middle Last
+        name_pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b'
+        name_matches = re.findall(name_pattern, first_part)
+
+        if name_matches:
+            # Filter out common non-name matches
+            exclude_words = ['resume', 'curriculum', 'vitae', 'profile', 'summary', 'objective',
+                           'experience', 'education', 'skills', 'contact', 'phone', 'email',
+                           'address', 'professional', 'personal', 'information', 'details',
+                           'work', 'history', 'career', 'technical', 'software', 'engineer',
+                           'developer', 'manager', 'senior', 'junior', 'lead', 'project',
+                           'data', 'analyst', 'scientist', 'designer', 'full', 'stack']
+
+            for match in name_matches:
+                match_lower = match.lower()
+                # Skip if it contains excluded words
+                if not any(ex in match_lower for ex in exclude_words):
+                    # Likely a name if it's 2-4 words, each 2-15 chars
+                    words = match.split()
+                    if 2 <= len(words) <= 4 and all(2 <= len(w) <= 15 for w in words):
+                        return match
+
+        # Strategy 4: Look for ALL CAPS name at the beginning
+        caps_pattern = r'^[A-Z\s]{4,40}(?=\s|$)'
+        caps_match = re.search(caps_pattern, first_part.strip())
+        if caps_match:
+            potential_name = caps_match.group().strip()
+            # Check if it's not a header
+            if potential_name.lower() not in ['resume', 'cv', 'curriculum vitae']:
+                # Title case it
+                return potential_name.title()
+
+        return None
+
+    def extract_structured_info(self, text: str, raw_text: str = None) -> Dict:
         """Extract structured information from CV text"""
         info = {
+            'name': None,
             'email': None,
             'phone': None,
             'linkedin': None,
@@ -43,13 +101,18 @@ class CVParserAgent:
             'education': [],
             'experience_years': None
         }
-        
-        # Extract email
+
+        # Extract email first (needed for name extraction)
         email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
         emails = re.findall(email_pattern, text)
         if emails:
             info['email'] = emails[0]
-        
+
+        # Extract name using the dedicated method
+        # Use raw_text if available (preserves original formatting), otherwise use cleaned text
+        name_source = raw_text if raw_text else text
+        info['name'] = self.extract_name_from_text(name_source, info['email'])
+
         # Extract phone
         phone_pattern = r'[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,5}[-\s\.]?[0-9]{1,5}'
         phones = re.findall(phone_pattern, text)
@@ -166,14 +229,17 @@ class CVParserAgent:
         """
         try:
             reader = PdfReader(pdf_path)
-            text = " ".join([page.extract_text() for page in reader.pages])
-            
+            raw_text = " ".join([page.extract_text() for page in reader.pages])
+
+            # Keep raw text for name extraction (preserves some formatting)
+            raw_text_for_name = raw_text
+
             # Clean up text
-            text = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+            text = re.sub(r'\s+', ' ', raw_text)  # Normalize whitespace
             text = re.sub(r'[^\x00-\x7F]+', '', text)  # Remove non-ASCII characters
-            
-            # Extract structured information
-            structured_info = self.extract_structured_info(text)
+
+            # Extract structured information (pass raw text for better name extraction)
+            structured_info = self.extract_structured_info(text, raw_text_for_name)
             
             # Create chunks
             if use_semantic_chunking:
