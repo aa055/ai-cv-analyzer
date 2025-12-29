@@ -420,7 +420,7 @@ with tab1:
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                if st.button("🚀 Get AI Feedback", type="primary", use_container_width=True):
+                if st.button("🚀 Get AI Feedback", type="primary", width="stretch"):
                     feedback_key = f"{cache_key}_{target_role}_{analysis_type}"
                     suggestions = safe_get_feedback(
                         parsed["text"],
@@ -444,7 +444,7 @@ with tab1:
                         )
             
             with col2:
-                if st.button("🔍 Check ATS Score", use_container_width=True):
+                if st.button("🔍 Check ATS Score", width="stretch"):
                     if not job_description or not job_description.strip():
                         st.warning("⚠️ Please provide a job description for ATS Score analysis. This is required to accurately match your CV against the job requirements.")
                     else:
@@ -472,7 +472,7 @@ with tab1:
                             )
 
             with col3:
-                if st.button("📊 Skills Analysis", use_container_width=True):
+                if st.button("📊 Skills Analysis", width="stretch"):
                     if not job_description or not job_description.strip():
                         st.warning("⚠️ Please provide a job description for Skills Analysis. This is required to accurately assess your skills against the job requirements.")
                     else:
@@ -506,7 +506,7 @@ with tab2:
     with header_col1:
         st.markdown("### 📋 Job Matching Dashboard")
     with header_col2:
-        if st.button("🗑️ Clear All", key="clear_all_recruiter", use_container_width=True):
+        if st.button("🗑️ Clear All", key="clear_all_recruiter", width="stretch"):
             st.session_state.recruiter_match_result = None
             st.session_state.recruiter_parsed = None
             st.session_state.recruiter_cache_key = None
@@ -547,7 +547,7 @@ with tab2:
 
         # Add button to trigger match analysis
         if uploaded_cv and jd_input:
-            if st.button("🎯 Generate Match Analysis", type="primary", use_container_width=True):
+            if st.button("🎯 Generate Match Analysis", type="primary", width="stretch"):
                 # Create cache key
                 cache_key = f"{uploaded_cv.name}_{uploaded_cv.size}"
 
@@ -586,12 +586,12 @@ with tab2:
             with col1:
                 # Max score gauge
                 fig_max = create_score_gauge(result['max_score'], "Max Match Score")
-                st.plotly_chart(fig_max, use_container_width=True)
+                st.plotly_chart(fig_max, width="stretch")
 
             with col2:
                 # Average score gauge
                 fig_avg = create_score_gauge(result['avg_score'], "Avg Match Score")
-                st.plotly_chart(fig_avg, use_container_width=True)
+                st.plotly_chart(fig_avg, width="stretch")
 
             with col3:
                 # Match interpretation
@@ -616,7 +616,7 @@ with tab2:
 
                     # Create and display chart
                     fig_details = create_similarity_chart(result['similarity_scores'], labels)
-                    st.plotly_chart(fig_details, use_container_width=True)
+                    st.plotly_chart(fig_details, width="stretch")
 
                     # Show top matching chunks
                     st.markdown("#### Top Matching Sections")
@@ -634,7 +634,7 @@ with tab2:
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                if st.button("📝 Generate Full Report", use_container_width=True):
+                if st.button("📝 Generate Full Report", width="stretch"):
                     summary_key = f"{cache_key}_summary"
                     summary = safe_generate_summary(
                         parsed["text"],
@@ -694,12 +694,12 @@ DETAILED ANALYSIS:
                             )
 
             with col2:
-                if st.button("🔄 Compare Candidates", use_container_width=True):
+                if st.button("🔄 Compare Candidates", width="stretch"):
                     st.session_state.multi_cv_mode = True
                     st.rerun()
 
             with col3:
-                if st.button("📧 Schedule Interview", use_container_width=True):
+                if st.button("📧 Schedule Interview", width="stretch"):
                     st.info("Interview scheduling feature coming soon!")
 
     else:
@@ -736,12 +736,12 @@ DETAILED ANALYSIS:
 
         with upload_col2:
             st.markdown("<br>", unsafe_allow_html=True)
-            add_more = st.button("➕ Add More", key="add_more_cv", use_container_width=True,
+            add_more = st.button("➕ Add More", key="add_more_cv", width="stretch",
                                 help="Click to add more CVs to the existing list")
 
         # Process uploaded CVs
         if uploaded_cvs and multi_jd_input:
-            if st.button("🎯 Analyze All Candidates", type="primary", use_container_width=True):
+            if st.button("🎯 Analyze All Candidates", type="primary", width="stretch"):
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
@@ -890,7 +890,7 @@ DETAILED ANALYSIS:
 
             with action_col1:
                 # Generate Final Verdict button
-                if st.button("🏆 Generate Final Verdict", type="primary", use_container_width=True):
+                if st.button("🏆 Generate Final Verdict", type="primary", width="stretch"):
                     with st.spinner("🤔 Analyzing candidates and generating verdict..."):
                         # Build summary of all candidates for LLM
                         candidates_summary = []
@@ -931,7 +931,7 @@ Please provide:
 
             with action_col2:
                 # Download PDF Report
-                if st.button("📥 Download Report (PDF)", use_container_width=True):
+                if st.button("📥 Download Report (PDF)", width="stretch"):
                     # Generate comprehensive report content
                     report_content = f"""
 MULTI-CANDIDATE EVALUATION REPORT
@@ -982,7 +982,7 @@ FINAL VERDICT:
 
             with action_col3:
                 # Remove selected / Clear candidates
-                if st.button("🗑️ Clear Candidates", use_container_width=True):
+                if st.button("🗑️ Clear Candidates", width="stretch"):
                     st.session_state.multi_cv_candidates = []
                     st.session_state.multi_cv_final_verdict = None
                     st.rerun()
@@ -1038,7 +1038,7 @@ with tab3:
                 title="Analysis Activity Over Time",
                 hover_data=['filename'] if 'filename' in df.columns else None
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             
             # Recent activity table
             st.markdown("#### 📊 Recent Activity")

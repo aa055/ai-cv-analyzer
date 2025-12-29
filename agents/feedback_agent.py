@@ -1,14 +1,14 @@
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 
 class FeedbackAgent:
     def __init__(self, model_name: str = "llama3.2"):
         self.model_name = model_name
-        self.llm = Ollama(model=model_name)
-    
+        self.llm = OllamaLLM(model=model_name)
+
     def update_model(self, model_name: str):
         """Update the LLM model being used"""
         self.model_name = model_name
-        self.llm = Ollama(model=model_name)
+        self.llm = OllamaLLM(model=model_name)
 
     def suggest_improvements(self, raw_cv_text, target_role=None):
         """Provide general CV improvement suggestions (excludes ATS and Skills analysis)"""

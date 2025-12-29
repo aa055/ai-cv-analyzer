@@ -1,14 +1,14 @@
-from langchain_community.llms import Ollama
+from langchain_ollama import OllamaLLM
 
 class SummaryAgent:
     def __init__(self, model_name: str = "llama3.2"):
         self.model_name = model_name
-        self.llm = Ollama(model=model_name)
-    
+        self.llm = OllamaLLM(model=model_name)
+
     def update_model(self, model_name: str):
         """Update the LLM model being used"""
         self.model_name = model_name
-        self.llm = Ollama(model=model_name)
+        self.llm = OllamaLLM(model=model_name)
 
     def generate_summary(self, cv_text):
         prompt = f"""You are an expert technical recruiter with 10+ years of experience evaluating candidates across various industries.
