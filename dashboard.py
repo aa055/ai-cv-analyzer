@@ -78,6 +78,10 @@ if 'feedback_cache' not in st.session_state:
     st.session_state.feedback_cache = {}
 if 'summary_cache' not in st.session_state:
     st.session_state.summary_cache = {}
+if 'ats_cache' not in st.session_state:
+    st.session_state.ats_cache = {}
+if 'skills_cache' not in st.session_state:
+    st.session_state.skills_cache = {}
 
 # Load agents
 agents = init_agents()
@@ -248,17 +252,73 @@ def safe_generate_summary(cv_text, cache_key=None):
         # Check cache first
         if cache_key and cache_key in st.session_state.summary_cache:
             return st.session_state.summary_cache[cache_key]
-        
+
         with st.spinner("📊 Generating comprehensive candidate summary..."):
             summary = agents['summary_agent'].generate_summary(cv_text)
-            
+
             # Cache the result
             if cache_key and enable_caching:
                 st.session_state.summary_cache[cache_key] = summary
-            
+
             return summary
     except Exception as e:
         st.error(f"❌ Error generating summary: {str(e)}")
+        return None
+
+def safe_check_ats_score(cv_text, target_role, job_description, cache_key=None):
+    """Safely check ATS score with error handling"""
+    try:
+        # Check cache first
+        if cache_key and cache_key in st.session_state.ats_cache:
+            return st.session_state.ats_cache[cache_key]
+
+        with st.spinner("🔍 Analyzing ATS compatibility..."):
+            ats_analysis = agents['feedback_agent'].check_ats_score(cv_text, target_role, job_description)
+
+            # Cache the result
+            if cache_key and enable_caching:
+                st.session_state.ats_cache[cache_key] = ats_analysis
+
+            # Add to history
+            st.session_state.analysis_history.append({
+                'type': 'ATS Score',
+                'filename': 'CV Analysis',
+                'timestamp': datetime.now().isoformat(),
+                'role': target_role or 'General'
+            })
+
+            return ats_analysis
+    except Exception as e:
+        st.error(f"❌ Error checking ATS score: {str(e)}")
+        st.info("💡 Make sure Ollama is running with the required model (llama3.2)")
+        return None
+
+def safe_analyze_skills(cv_text, target_role, job_description, cache_key=None):
+    """Safely analyze skills with error handling"""
+    try:
+        # Check cache first
+        if cache_key and cache_key in st.session_state.skills_cache:
+            return st.session_state.skills_cache[cache_key]
+
+        with st.spinner("📊 Analyzing skills..."):
+            skills_analysis = agents['feedback_agent'].analyze_skills(cv_text, target_role, job_description)
+
+            # Cache the result
+            if cache_key and enable_caching:
+                st.session_state.skills_cache[cache_key] = skills_analysis
+
+            # Add to history
+            st.session_state.analysis_history.append({
+                'type': 'Skills Analysis',
+                'filename': 'CV Analysis',
+                'timestamp': datetime.now().isoformat(),
+                'role': target_role or 'General'
+            })
+
+            return skills_analysis
+    except Exception as e:
+        st.error(f"❌ Error analyzing skills: {str(e)}")
+        st.info("💡 Make sure Ollama is running with the required model (llama3.2)")
         return None
 
 # Main tabs
@@ -267,7 +327,7 @@ tab1, tab2, tab3 = st.tabs(["🎯 Candidate Portal", "👔 Recruiter Dashboard",
 # --- Candidate View ---
 with tab1:
     col1, col2 = st.columns([2, 1])
-    
+
     with col1:
         st.markdown("### 📤 Upload Your CV")
         uploaded_cv = st.file_uploader(
@@ -276,7 +336,15 @@ with tab1:
             key="cv_upload",
             help="Upload your CV in PDF format for analysis"
         )
-    
+
+        st.markdown("### 📝 Job Description")
+        job_description = st.text_area(
+            "Paste the job description (Required for ATS Score & Skills Analysis)",
+            height=150,
+            placeholder="Paste the job description here to get more accurate ATS scoring and skills analysis...",
+            help="Required for ATS Score and Skills Analysis. Optional for AI Feedback."
+        )
+
     with col2:
         st.markdown("### 🎯 Target Role")
         target_role = st.text_input(
@@ -284,7 +352,7 @@ with tab1:
             placeholder="e.g., Senior Data Scientist",
             help="Specify the role you're applying for to get tailored feedback"
         )
-        
+
         analysis_type = st.radio(
             "Analysis Type",
             ["Quick Review", "Detailed Analysis"],
@@ -348,11 +416,59 @@ with tab1:
             
             with col2:
                 if st.button("🔍 Check ATS Score", use_container_width=True):
-                    st.info("ATS scoring feature coming soon!")
-            
+                    if not job_description or not job_description.strip():
+                        st.warning("⚠️ Please provide a job description for ATS Score analysis. This is required to accurately match your CV against the job requirements.")
+                    else:
+                        ats_key = f"{cache_key}_{target_role}_{hash(job_description)}_ats"
+                        ats_analysis = safe_check_ats_score(
+                            parsed["text"],
+                            target_role,
+                            job_description,
+                            ats_key if enable_caching else None
+                        )
+
+                        if ats_analysis:
+                            st.markdown("---")
+                            st.markdown("### 🔍 ATS Compatibility Analysis")
+
+                            # Display ATS analysis in a nice container
+                            st.info(ats_analysis)
+
+                            # Download button for ATS analysis
+                            st.download_button(
+                                label="📥 Download ATS Report",
+                                data=ats_analysis,
+                                file_name=f"ats_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                mime="text/plain"
+                            )
+
             with col3:
                 if st.button("📊 Skills Analysis", use_container_width=True):
-                    st.info("Skills extraction feature coming soon!")
+                    if not job_description or not job_description.strip():
+                        st.warning("⚠️ Please provide a job description for Skills Analysis. This is required to accurately assess your skills against the job requirements.")
+                    else:
+                        skills_key = f"{cache_key}_{target_role}_{hash(job_description)}_skills"
+                        skills_analysis = safe_analyze_skills(
+                            parsed["text"],
+                            target_role,
+                            job_description,
+                            skills_key if enable_caching else None
+                        )
+
+                        if skills_analysis:
+                            st.markdown("---")
+                            st.markdown("### 📊 Skills Analysis")
+
+                            # Display skills analysis in a nice container
+                            st.info(skills_analysis)
+
+                            # Download button for skills analysis
+                            st.download_button(
+                                label="📥 Download Skills Report",
+                                data=skills_analysis,
+                                file_name=f"skills_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                mime="text/plain"
+                            )
 
 # --- Recruiter View ---
 with tab2:
@@ -587,6 +703,8 @@ with tab3:
             st.session_state.parsed_cv_cache = {}
             st.session_state.feedback_cache = {}
             st.session_state.summary_cache = {}
+            st.session_state.ats_cache = {}
+            st.session_state.skills_cache = {}
             st.success("✅ History cleared!")
             st.rerun()
     else:
@@ -596,7 +714,7 @@ with tab3:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #888; padding: 20px;'>
-    <p>Powered by Ollama & LangChain | Made with ❤️ using Streamlit</p>
+    <p>Powered by Ollama & LangChain | Made using Streamlit</p>
     <p style='font-size: 12px;'>Ensure Ollama is running with llama3.2 and nomic-embed-text models</p>
 </div>
 """, unsafe_allow_html=True)
