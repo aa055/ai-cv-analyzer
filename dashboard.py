@@ -846,13 +846,17 @@ DETAILED ANALYSIS:
             # Build table data
             table_data = []
             for idx, candidate in enumerate(sorted_candidates, 1):
+                # Convert experience_years to string to avoid mixed type issues
+                exp_years = candidate['experience_years']
+                exp_str = str(exp_years) if exp_years and exp_years != '-' else '-'
+
                 row = {
                     '#': idx,
                     'Candidate Name': candidate['name'],
                     'Email': candidate['email'],
                     'LinkedIn': candidate['linkedin'],
                     'GitHub': candidate['github'],
-                    'Experience (Yrs)': candidate['experience_years'] if candidate['experience_years'] != '-' else '-',
+                    'Experience (Yrs)': exp_str,
                     'Max Score': f"{candidate['max_score']:.1%}",
                     'Avg Score': f"{candidate['avg_score']:.1%}",
                     'Overall Rating': f"{candidate['overall_rating']:.1%}"
@@ -868,7 +872,7 @@ DETAILED ANALYSIS:
                 try:
                     rating = float(rating_str) / 100
                     if abs(rating - best_rating) < 0.001:  # Best candidate
-                        return ['background-color: #E8F5E9'] * len(row)  # Very light green
+                        return ['background-color: #5a9c5c'] * len(row)  # green
                 except:
                     pass
                 return [''] * len(row)
@@ -876,7 +880,7 @@ DETAILED ANALYSIS:
             styled_df = df.style.apply(highlight_best, axis=1)
 
             # Display the table
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            st.dataframe(styled_df, width='stretch', hide_index=True)
 
             # Add more CVs button (alternative placement)
             st.markdown("")
@@ -987,14 +991,9 @@ FINAL VERDICT:
             if st.session_state.multi_cv_final_verdict:
                 st.markdown("---")
                 st.markdown("### 🏆 Final Verdict")
-                # Display verdict with proper formatting (black text, styled container)
-                st.markdown(f"""
-                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #1f77b4;">
-                    <div style="color: #000000; font-size: 15px; line-height: 1.6;">
-                        {st.session_state.multi_cv_final_verdict.replace(chr(10), '<br>')}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                # Display verdict with proper markdown rendering
+                with st.container(border=True):
+                    st.markdown(st.session_state.multi_cv_final_verdict)
 
 # --- Analytics Tab ---
 with tab3:
@@ -1045,7 +1044,7 @@ with tab3:
             st.markdown("#### 📊 Recent Activity")
             st.dataframe(
                 df[['timestamp', 'type', 'filename']].tail(10).sort_values('timestamp', ascending=False),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True
             )
         
