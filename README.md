@@ -402,10 +402,3 @@ ai-cv-analyzer/
     └── summary_agent.py      # Candidate evaluation, hiring recommendations
 ```
 
----
-
-## Requirements
-
-See `requirements.txt` for the complete list of dependencies:
-
----
